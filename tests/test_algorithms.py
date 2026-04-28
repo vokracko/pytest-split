@@ -193,19 +193,18 @@ class TestAlgorithms:
 
         assert groups == expected
 
-    def test__split_tests_same_set_regardless_of_order(self):
-        """NOTE: only least_duration does this correctly"""
+    @pytest.mark.parametrize("algo_name", Algorithms.names())
+    def test__split_tests_same_set_regardless_of_order(self, algo_name):
         tests = ["a", "b", "c", "d", "e", "f", "g"]
         durations = {t: 1 for t in tests}
         items = [item(t) for t in tests]
-        algo = Algorithms["least_duration"].value
+        algo = Algorithms[algo_name].value
         for n in (2, 3, 4):
             selected_each: list[set[Item]] = [set() for _ in range(n)]
             for order in itertools.permutations(items):
-                splits = algo(
-                    splits=n,
-                    durations=compute_durations(list(order), durations),
-                )
+                d = compute_durations(list(order), durations)
+                d = {it: d[it] for it in sorted(d, key=lambda it: it.nodeid)}
+                splits = algo(splits=n, durations=d)
                 for i, group in enumerate(splits):
                     if not selected_each[i]:
                         selected_each[i] = set(group.selected)

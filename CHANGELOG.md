@@ -15,6 +15,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   chosen group's `selected` and `deselected` lists in pytest's collection
   order before the test session executes, so end-to-end behaviour is
   unchanged.
+- `duration_based_chunks` now computes group membership from a canonical
+  (nodeid-sorted) traversal, so splits are stable across pytest collection
+  orders (e.g. when parametrising over a `set`/`frozenset`/`dict.keys()` whose
+  iteration order is hash-randomised). Within-group execution order is
+  unchanged: pytest still runs each group's tests in the order it collected
+  them. Notebook cell node-ids that contain numeric suffixes
+  (`nb.ipynb::cell_0..cell_10`) sort alphabetically (`cell_0, cell_1, cell_10,
+  cell_11, cell_2, …`) for the membership pass; `ensure_ipynb_compatibility`
+  still pulls all sibling cells into the same group, so user-visible behaviour
+  is correct.
 
 ### Fixed
 - Fix malformed bullet points rendering in GitHub Pages documentation

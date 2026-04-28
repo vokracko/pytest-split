@@ -161,6 +161,12 @@ class PytestSplitPlugin(Base):
 
         algo = algorithms.Algorithms[config.option.splitting_algorithm].value
         durations = algorithms.compute_durations(items, self.cached_durations)
+        # Pass items in canonical (nodeid-sorted) order so group membership is
+        # independent of the order pytest happened to collect them.
+        durations = {
+            item: durations[item]
+            for item in sorted(durations, key=lambda item: item.nodeid)
+        }
         groups = algo(splits, durations)
         group = algorithms.select_in_collection_order(groups[group_idx - 1], items)
 

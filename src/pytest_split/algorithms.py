@@ -1,6 +1,7 @@
 import enum
 import heapq
 from abc import ABC, abstractmethod
+from operator import itemgetter
 from typing import TYPE_CHECKING, NamedTuple
 
 if TYPE_CHECKING:
@@ -53,14 +54,11 @@ class LeastDurationAlgorithm(AlgorithmBase):
     def __call__(
         self, splits: int, durations: "dict[nodes.Item, float]"
     ) -> "list[TestGroup]":
-        # Sort by name to ensure it's always the same order
-        items_with_durations = sorted(
-            durations.items(), key=lambda tup: tup[0].nodeid
-        )
-
-        # sort in ascending order
+        # Sort by duration descending so the heap-based assignment
+        # processes the largest tests first - greedy first-fit-decreasing
+        # for the smallest-running-total bin.
         sorted_items_with_durations = sorted(
-            items_with_durations, key=lambda tup: tup[1], reverse=True
+            durations.items(), key=itemgetter(1), reverse=True
         )
 
         selected: list[list[nodes.Item]] = [[] for _ in range(splits)]
