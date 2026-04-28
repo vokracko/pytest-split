@@ -12,6 +12,7 @@ from pytest_split.algorithms import (
     Algorithms,
     TestGroup,
     compute_durations,
+    select_in_collection_order,
 )
 
 item = namedtuple("item", "nodeid")  # noqa: PYI024
@@ -166,6 +167,8 @@ class TestAlgorithms:
             ),
             (
                 "least_duration",
+                # selected/deselected are in heap-pop order (duration desc)
+                # since the algorithm no longer restores input order.
                 [
                     TestGroup(
                         selected=[item("e")],
@@ -173,7 +176,7 @@ class TestAlgorithms:
                         duration=10000,
                     ),
                     TestGroup(
-                        selected=[item(x) for x in "abcd"],
+                        selected=[item(x) for x in "dcba"],
                         deselected=[item("e")],
                         duration=14,
                     ),
@@ -234,6 +237,23 @@ class TestComputeDurations:
     def test_returned_dict_iterates_in_input_order(self):
         items = [item("c"), item("a"), item("b")]
         assert list(compute_durations(items, {"a": 1, "b": 2, "c": 3})) == items
+
+
+class TestSelectInCollectionOrder:
+    def test_rebuilds_selected_and_deselected_in_input_order(self):
+        items = [item("a"), item("b"), item("c"), item("d")]
+        # Algorithm returned membership in some other order.
+        group = TestGroup(
+            selected=[item("c"), item("a")],
+            deselected=[item("d"), item("b")],
+            duration=5.0,
+        )
+
+        result = select_in_collection_order(group, items)
+
+        assert result.selected == [item("a"), item("c")]
+        assert result.deselected == [item("b"), item("d")]
+        assert result.duration == 5.0
 
 
 class MyAlgorithm(AlgorithmBase):
