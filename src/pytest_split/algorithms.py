@@ -41,6 +41,9 @@ class LeastDurationAlgorithm(AlgorithmBase):
     maintaining the original order of items. It is therefore important that the order of items be identical on all nodes
     that use this plugin. Due to issue #25 this might not always be the case.
 
+    The order of ``selected`` items in each returned group is implementation-defined; the plugin reorders the chosen
+    group in pytest's collection order before execution.
+
     :param splits: How many groups we're splitting in.
     :param durations: Mapping from each test item to its duration. Build it with :func:`compute_durations`.
     :return:
@@ -50,35 +53,30 @@ class LeastDurationAlgorithm(AlgorithmBase):
     def __call__(
         self, splits: int, durations: "dict[nodes.Item, float]"
     ) -> "list[TestGroup]":
-        # add index of item in list
-        items_with_durations_indexed = [
-            (item, dur, i) for i, (item, dur) in enumerate(durations.items())
-        ]
-
         # Sort by name to ensure it's always the same order
-        items_with_durations_indexed = sorted(
-            items_with_durations_indexed, key=lambda tup: tup[0].nodeid
+        items_with_durations = sorted(
+            durations.items(), key=lambda tup: tup[0].nodeid
         )
 
         # sort in ascending order
         sorted_items_with_durations = sorted(
-            items_with_durations_indexed, key=lambda tup: tup[1], reverse=True
+            items_with_durations, key=lambda tup: tup[1], reverse=True
         )
 
-        selected: list[list[tuple[nodes.Item, int]]] = [[] for _ in range(splits)]
+        selected: list[list[nodes.Item]] = [[] for _ in range(splits)]
         deselected: list[list[nodes.Item]] = [[] for _ in range(splits)]
         duration: list[float] = [0 for _ in range(splits)]
 
         # create a heap of the form (summed_durations, group_index)
         heap: list[tuple[float, int]] = [(0, i) for i in range(splits)]
         heapq.heapify(heap)
-        for item, item_duration, original_index in sorted_items_with_durations:
+        for item, item_duration in sorted_items_with_durations:
             # get group with smallest sum
             summed_durations, group_idx = heapq.heappop(heap)
             new_group_durations = summed_durations + item_duration
 
             # store assignment
-            selected[group_idx].append((item, original_index))
+            selected[group_idx].append(item)
             duration[group_idx] = new_group_durations
             for i in range(splits):
                 if i != group_idx:
@@ -87,19 +85,12 @@ class LeastDurationAlgorithm(AlgorithmBase):
             # store new duration - in case of ties it sorts by the group_idx
             heapq.heappush(heap, (new_group_durations, group_idx))
 
-        groups = []
-        for i in range(splits):
-            # sort the items by their original index to maintain relative ordering
-            # we don't care about the order of deselected items
-            s = [
-                item
-                for item, original_index in sorted(selected[i], key=lambda tup: tup[1])
-            ]
-            group = TestGroup(
-                selected=s, deselected=deselected[i], duration=duration[i]
+        return [
+            TestGroup(
+                selected=selected[i], deselected=deselected[i], duration=duration[i]
             )
-            groups.append(group)
-        return groups
+            for i in range(splits)
+        ]
 
 
 class DurationBasedChunksAlgorithm(AlgorithmBase):
@@ -164,6 +155,21 @@ def compute_durations(
         # If there are no durations, give every test the same arbitrary value
         avg = 1
     return {item: relevant.get(item.nodeid, avg) for item in items}
+
+
+def select_in_collection_order(
+    group: TestGroup, items: "list[nodes.Item]"
+) -> TestGroup:
+    """
+    Rebuild ``group`` so that ``selected`` and ``deselected`` filter
+    ``items`` in their original collection order, keyed on nodeid.
+    """
+    selected_ids = {it.nodeid for it in group.selected}
+    return TestGroup(
+        selected=[it for it in items if it.nodeid in selected_ids],
+        deselected=[it for it in items if it.nodeid not in selected_ids],
+        duration=group.duration,
+    )
 
 
 class Algorithms(enum.Enum):

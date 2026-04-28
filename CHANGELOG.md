@@ -10,6 +10,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   algorithm subclasses must update their signature. Use the new public
   `pytest_split.algorithms.compute_durations(items, cached_durations)` helper to
   build the dict the same way the plugin does.
+- Algorithms now own only group membership; the order of `selected` items in
+  the returned `TestGroup`s is implementation-defined. The plugin rebuilds the
+  chosen group's `selected` and `deselected` lists in pytest's collection
+  order before the test session executes, so end-to-end behaviour is
+  unchanged.
 
 ### Fixed
 - Fix malformed bullet points rendering in GitHub Pages documentation
