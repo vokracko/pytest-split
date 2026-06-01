@@ -11,6 +11,7 @@ from pytest_split.algorithms import (
     AlgorithmBase,
     Algorithms,
     TestGroup,
+    compute_durations,
 )
 
 item = namedtuple("item", "nodeid")  # noqa: PYI024
@@ -23,7 +24,9 @@ class TestAlgorithms:
         items = [item(x) for x in durations]
         algo = Algorithms[algo_name].value
 
-        first, second, third = algo(splits=3, items=items, durations=durations)
+        first, second, third = algo(
+            splits=3, durations=compute_durations(items, durations)
+        )
 
         # each split should have one test
         assert first == TestGroup(
@@ -50,7 +53,7 @@ class TestAlgorithms:
         items = [item(x) for x in ["a"]]
         algo = Algorithms[algo_name].value
 
-        first, second = algo(splits=2, items=items, durations=durations)
+        first, second = algo(splits=2, durations=compute_durations(items, durations))
 
         assert first == TestGroup(
             selected=[item("a")], deselected=[], duration=1
@@ -65,7 +68,7 @@ class TestAlgorithms:
         items = [item(x) for x in ["a", "b"]]
         algo = Algorithms[algo_name].value
 
-        first, second = algo(splits=2, items=items, durations=durations)
+        first, second = algo(splits=2, durations=compute_durations(items, durations))
 
         assert first == TestGroup(
             selected=[item("a")], deselected=[item("b")], duration=1
@@ -80,7 +83,7 @@ class TestAlgorithms:
         items = [item(x) for x in ["a", "b", "c", "d"]]
         algo = Algorithms["least_duration"].value
 
-        first, second = algo(splits=2, items=items, durations=durations)
+        first, second = algo(splits=2, durations=compute_durations(items, durations))
 
         assert first == TestGroup(
             selected=[item("d")],
@@ -139,7 +142,7 @@ class TestAlgorithms:
         items = [item(x) for x in ["a", "b", "c", "d"]]
         algo = Algorithms[algo_name].value
 
-        groups = algo(splits=2, items=items, durations=durations)
+        groups = algo(splits=2, durations=compute_durations(items, durations))
 
         assert groups == expected
 
@@ -183,7 +186,7 @@ class TestAlgorithms:
         items = [item(x) for x in ["a", "b", "c", "d", "e"]]
         algo = Algorithms[algo_name].value
 
-        groups = algo(splits=2, items=items, durations=durations)
+        groups = algo(splits=2, durations=compute_durations(items, durations))
 
         assert groups == expected
 
@@ -196,7 +199,10 @@ class TestAlgorithms:
         for n in (2, 3, 4):
             selected_each: list[set[Item]] = [set() for _ in range(n)]
             for order in itertools.permutations(items):
-                splits = algo(splits=n, items=order, durations=durations)
+                splits = algo(
+                    splits=n,
+                    durations=compute_durations(list(order), durations),
+                )
                 for i, group in enumerate(splits):
                     if not selected_each[i]:
                         selected_each[i] = set(group.selected)
@@ -207,13 +213,36 @@ class TestAlgorithms:
             assert issubclass(Algorithms[a].value.__class__, AlgorithmBase)
 
 
+class TestComputeDurations:
+    def test_uses_real_durations_avg_fills_missing_ignores_irrelevant(self):
+        # "ghost" isn't in the suite so it's excluded from the avg, and "c"
+        # gets the avg of "a" and "b": (2.0 + 4.0) / 2 = 3.0.
+        items = [item("a"), item("b"), item("c")]
+        cached = {"a": 2.0, "b": 4.0, "ghost": 10000.0}
+        assert compute_durations(items, cached) == {
+            item("a"): 2.0,
+            item("b"): 4.0,
+            item("c"): 3.0,
+        }
+
+    def test_falls_back_to_one_when_no_relevant_durations(self):
+        assert compute_durations([item("a"), item("b")], {}) == {
+            item("a"): 1,
+            item("b"): 1,
+        }
+
+    def test_returned_dict_iterates_in_input_order(self):
+        items = [item("c"), item("a"), item("b")]
+        assert list(compute_durations(items, {"a": 1, "b": 2, "c": 3})) == items
+
+
 class MyAlgorithm(AlgorithmBase):
-    def __call__(self, a, b, c):
+    def __call__(self, a, b):
         """no-op"""
 
 
 class MyOtherAlgorithm(AlgorithmBase):
-    def __call__(self, a, b, c):
+    def __call__(self, a, b):
         """no-op"""
 
 
